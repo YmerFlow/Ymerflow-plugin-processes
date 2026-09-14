@@ -1,0 +1,37 @@
+name: CI
+
+# Smoke-test the plugin build routine against the checked-in cluster-test-widget fixture. This is
+# the warmup that used to run at base-runner image-build time — it now lives here as CI, so a break
+# in the plugin build fails this repo instead of every production runner image.
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-fixture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install (pulls ymerflow-plugin-sdk from its git URL)
+        run: pip install .
+
+      - name: npm-pack the fixture into a source dir
+        run: |
+          mkdir -p /tmp/plugin-src
+          npm pack ./tests/fixtures/cluster-test-widget --pack-destination /tmp/plugin-src
+          ls -la /tmp/plugin-src
+
+      - name: Build the fixture into a Module-Federation remote
+        run: |
+          python -m ymerflow_plugin_build cluster-test-widget 1.0.0 /tmp/_warmup --source /tmp/plugin-src
+          test -f /tmp/_warmup/remoteEntry.js
+          echo "remoteEntry.js produced OK"
